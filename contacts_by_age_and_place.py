@@ -13,8 +13,6 @@ data = pd.merge(data,
     pd.read_csv("2008_Mossong_POLYMOD_hh_common.csv"),
     on='hh_id')
 
-data = data.query("country == 'FI'")
-
 data['cnt_age'] = data.cnt_age_exact.fillna((data.cnt_age_est_min + data.cnt_age_est_max)/2)
 data = data.dropna(subset=["cnt_age", "part_age"])
 
@@ -33,7 +31,7 @@ def get_contact_matrix(data, ag_participants=None):
     for part_ag, d in data.groupby('part_age_group'):
         n = ag_participants[part_ag]
         for cnt_ag, cd in d.groupby('cnt_age_group'):
-            M[part_ag, cnt_ag] += cd['contact_weight'].sum()
+            M[part_ag, cnt_ag] += cd['contact_weight'].sum()/n
     return M
 
 data = data[data[place_types].values.sum(axis=1) > 0]
@@ -45,7 +43,7 @@ data['contact_weight'] = 1.0
 
 Ms = []
 for country, cd in data.groupby('country'):
-    ag_participants = data.groupby('part_age_group')['part_id'].nunique()
+    ag_participants = cd.groupby('part_age_group')['part_id'].nunique()
     for place_type in place_types:
         plt.title(place_type)
         d = cd.copy()
@@ -54,9 +52,10 @@ for country, cd in data.groupby('country'):
         OM = get_contact_matrix(d, ag_participants)
         # TODO: This isn't very well founded, but at least it gets rid of zeros
         os = np.sum(OM)
-        OM = scipy.ndimage.gaussian_filter(OM, 1.0)
+        OM = scipy.ndimage.gaussian_filter(OM, 0.25)
 
-        OM *= os/np.sum(OM)
+        OM /= np.sum(OM)
+        OM *= os
 
         #M_cumtotal += OM
         
